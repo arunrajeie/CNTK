@@ -290,22 +290,21 @@ DataDeserializerPtr CompositeDataReader::CreateDeserializer(const ConfigParamete
 //     [
 //         type = "ImageDataDeserializer"
 //         module = "ImageReader"
-//         inputs = [
+//         input = [
 //               features = [
 //---->              transforms = [
 //                       [type = "Crop"]:[type = "Scale"]...
-
 void CompositeDataReader::CreateTransforms(const ConfigParameters& deserializerConfig)
 {
     std::string defaultModule = deserializerConfig("module");
     if (!deserializerConfig.Exists("input"))
         return;
 
-    argvector<ConfigParameters> inputs = deserializerConfig("input");
-    for (size_t i = 0; i < inputs.size(); ++i)
+    const ConfigParameters& inputs = deserializerConfig("input");
+    for (const pair<string, ConfigParameters>& section : inputs)
     {
-        // Trying to find transfomers in a stream section of the config.
-        auto inputSections = TryGetSectionsWithParameter(inputs[i], "transforms");
+        // Trying to find transforms in a stream section of the config.
+        auto inputSections = TryGetSectionsWithParameter(section.second, "transforms");
         if (inputSections.size() > 1)
         {
             LogicError("Only a single 'transforms' config is allowed per stream.");
@@ -317,7 +316,7 @@ void CompositeDataReader::CreateTransforms(const ConfigParameters& deserializerC
             continue;
         }
 
-        ConfigParameters input = inputs[i](inputSections.front());
+        ConfigParameters input = section.second(inputSections.front());
         std::wstring inputName = msra::strfun::utf16(input.ConfigName());
 
         // Read transformers in order and appending them to the transformer pipeline.
@@ -328,7 +327,7 @@ void CompositeDataReader::CreateTransforms(const ConfigParameters& deserializerC
             p.Insert("precision", deserializerConfig("precision"));
 
             TransformerPtr transformer = CreateTransformer(p, defaultModule, std::wstring());
-            m_transforms.push_back(Transformation{transformer, inputName});
+            m_transforms.push_back(Transformation{ transformer, inputName });
         }
 
         // Let's add a cast transformer by default. It is noop if the type provided by others is float
